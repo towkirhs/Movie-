@@ -30,7 +30,6 @@ enum class Tab(val label: String, val icon: ImageVector) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Sources.load(this)
         Store.init(this)
         val scheme = darkColorScheme(background = Color.Black, surface = Color.Black)
         setContent { MaterialTheme(colorScheme = scheme) { Surface(color = Color.Black) { App() } } }
