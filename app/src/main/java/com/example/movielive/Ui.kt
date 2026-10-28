@@ -36,6 +36,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 
 private val ChipBg = Color(0xFF262626)
 private val CardBg = Color(0xFF202020)
@@ -144,24 +145,42 @@ fun LiveScreen(onPlay: (String) -> Unit) {
     var fetched by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var hideDead by remember { mutableStateOf(true) }
+    var round by remember { mutableIntStateOf(0) }
     LaunchedEffect(Store.playlists) { loading = true; fetched = Sources.playlistChannels(); loading = false }
     val all = Store.channels + fetched
+    LaunchedEffect(all, round) {
+        all.filter { it.url !in Sources.alive }.forEach { c -> launch { Sources.check(c.url) } }
+    }
     if (all.isEmpty() && !loading) {
         Text("No live links yet. Add a playlist or channel in Settings.", Modifier.padding(16.dp), color = Muted)
         return
     }
-    val groups = all.filter { it.name.contains(query, true) || it.group.contains(query, true) }
-        .groupBy { it.group.ifBlank { "Channels" } }
+    val checked = all.count { it.url in Sources.alive }
+    val working = all.count { Sources.alive[it.url] == true }
+    val groups = all.filter {
+        (it.name.contains(query, true) || it.group.contains(query, true)) && !(hideDead && Sources.alive[it.url] == false)
+    }.groupBy { it.group.ifBlank { "Channels" } }
     Column(Modifier.padding(horizontal = 12.dp)) {
         OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
             shape = RoundedCornerShape(20.dp), label = { Text("Search channels") })
-        if (loading) Text("Loading playlists…", color = Muted, modifier = Modifier.padding(top = 8.dp))
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (loading) "Loading playlists…" else "Checked $checked/${all.size} · $working working",
+                Modifier.weight(1f), color = Muted, fontSize = 13.sp)
+            Text("Hide dead", fontSize = 13.sp)
+            Switch(hideDead, { hideDead = it }, Modifier.padding(horizontal = 8.dp))
+            TextButton({ Sources.alive.clear(); round++ }) { Text("Re-check") }
+        }
         LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
             groups.forEach { (group, channels) ->
                 item { Text(group, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp)) }
                 items(channels) { c ->
-                    Text(c.name, Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape14).background(CardBg)
-                        .clickable { onPlay(c.url) }.padding(16.dp), fontWeight = FontWeight.SemiBold)
+                    val dot = when (Sources.alive[c.url]) { true -> Color(0xFF3FA34D); false -> Color(0xFFFF0A3C); null -> Muted }
+                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape14).background(CardBg)
+                        .clickable { onPlay(c.url) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("●", color = dot, modifier = Modifier.padding(end = 12.dp))
+                        Text(c.name, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }

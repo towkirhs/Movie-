@@ -4,9 +4,12 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,6 +18,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.URI
 import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 
 enum class Kind { MOVIE, TV }
 
@@ -42,6 +46,23 @@ private val http = OkHttpClient()
 
 /** Builds playable URLs from the templates and playlists the user enters in Settings. */
 object Sources {
+    /** url -> is the stream reachable. Filled by check(); kept for the app session. */
+    val alive = mutableStateMapOf<String, Boolean>()
+    private val gate = Semaphore(16)
+    private val checker = http.newBuilder().callTimeout(8, TimeUnit.SECONDS).build()
+
+    /** Asks the server for the first bytes of the stream; any success response means it is up. */
+    suspend fun check(url: String) {
+        alive[url] = gate.withPermit {
+            withContext(Dispatchers.IO) {
+                try {
+                    checker.newCall(Request.Builder().url(url).header("Range", "bytes=0-1023").build())
+                        .execute().use { it.isSuccessful }
+                } catch (e: Exception) { false }
+            }
+        }
+    }
+
     fun movieUrl(id: Int): String? =
         Store.movieTpl.takeIf { it.isNotBlank() }?.replace("{id}", id.toString())
 
