@@ -1,15 +1,8 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
-
-val tmdbKey = Properties().apply {
-    val f = rootProject.file("local.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}.getProperty("TMDB_API_KEY", "")
 
 android {
     namespace = "com.example.movielive"
@@ -20,9 +13,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
-        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
     }
-    buildFeatures { compose = true; buildConfig = true }
+    buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }

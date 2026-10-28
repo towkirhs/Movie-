@@ -32,34 +32,46 @@ data class Item(
     }
 }
 
-data class Channel(val name: String, val url: String, val time: String, val league: String)
+data class Channel(val name: String, val url: String, val group: String)
 data class Entry(val item: Item, val status: String)
 
-/** Reads assets/sources.json — the ONE place the user adds their own links. */
-object Sources {
-    private var movies: Map<Int, String> = emptyMap()
-    private var tv: Map<Int, String> = emptyMap()
-    var live: List<Channel> = emptyList()
+private val http = OkHttpClient()
 
-    fun load(ctx: Context) {
-        val json = JSONObject(ctx.assets.open("sources.json").bufferedReader().use { it.readText() })
-        movies = idMap(json.optJSONObject("movies"))
-        tv = idMap(json.optJSONObject("tv"))
-        val l = json.optJSONArray("live")
-        live = (0 until (l?.length() ?: 0)).map { l!!.getJSONObject(it) }
-            .map { Channel(it.getString("name"), it.optString("url"), it.optString("time").ifBlank { "Anytime" }, it.optString("league")) }
-            .filter { it.url.isNotBlank() }
+/** Builds playable URLs from the templates and playlists the user enters in Settings. */
+object Sources {
+    fun movieUrl(id: Int): String? =
+        Store.movieTpl.takeIf { it.isNotBlank() }?.replace("{id}", id.toString())
+
+    fun hasTv(): Boolean = Store.tvTpl.isNotBlank()
+
+    fun episodeUrl(id: Int, season: Int, episode: Int): String? =
+        Store.tvTpl.takeIf { it.isNotBlank() }
+            ?.replace("{id}", id.toString())?.replace("{s}", season.toString())?.replace("{e}", episode.toString())
+
+    /** Channels from all saved M3U playlists; a playlist that fails to load is skipped. */
+    suspend fun playlistChannels(): List<Channel> = withContext(Dispatchers.IO) {
+        Store.playlists.flatMap { url ->
+            try {
+                val text = http.newCall(Request.Builder().url(url).build()).execute().use { it.body!!.string() }
+                parseM3u(text)
+            } catch (e: Exception) { emptyList() }
+        }
     }
 
-    private fun idMap(o: JSONObject?): Map<Int, String> =
-        o?.keys()?.asSequence()
-            ?.mapNotNull { k -> k.toIntOrNull()?.let { it to o.getString(k) } }
-            ?.filter { it.second.isNotBlank() }?.toMap() ?: emptyMap()
-
-    fun movieUrl(id: Int): String? = movies[id]
-    fun hasTv(id: Int): Boolean = tv.containsKey(id)
-    fun episodeUrl(id: Int, season: Int, episode: Int): String? =
-        tv[id]?.replace("{s}", season.toString())?.replace("{e}", episode.toString())
+    private fun parseM3u(text: String): List<Channel> {
+        val out = mutableListOf<Channel>()
+        var name: String? = null
+        var group = ""
+        for (line in text.lineSequence().map { it.trim() }) {
+            if (line.startsWith("#EXTINF")) {
+                name = line.substringAfterLast(",").trim()
+                group = Regex("group-title=\"([^\"]*)\"").find(line)?.groupValues?.get(1) ?: ""
+            } else if (line.isNotEmpty() && !line.startsWith("#") && name != null) {
+                out += Channel(name, line, group); name = null
+            }
+        }
+        return out
+    }
 }
 
 /** Watch history and My List, kept in SharedPreferences. */
@@ -67,12 +79,36 @@ object Store {
     private lateinit var sp: SharedPreferences
     var history by mutableStateOf<List<Item>>(emptyList()); private set
     var list by mutableStateOf<List<Entry>>(emptyList()); private set
+    var tmdbKey by mutableStateOf(""); private set
+    var movieTpl by mutableStateOf(""); private set
+    var tvTpl by mutableStateOf(""); private set
+    var playlists by mutableStateOf<List<String>>(emptyList()); private set
+    var channels by mutableStateOf<List<Channel>>(emptyList()); private set
 
     fun init(ctx: Context) {
         sp = ctx.getSharedPreferences("store", Context.MODE_PRIVATE)
         history = read("history").map { Item.fromJson(it) }
         list = read("list").map { Entry(Item.fromJson(it.getJSONObject("item")), it.getString("status")) }
+        tmdbKey = sp.getString("tmdbKey", "") ?: ""
+        movieTpl = sp.getString("movieTpl", "") ?: ""
+        tvTpl = sp.getString("tvTpl", "") ?: ""
+        playlists = JSONArray(sp.getString("playlists", "[]")).let { a -> (0 until a.length()).map { a.getString(it) } }
+        channels = read("channels").map { Channel(it.getString("name"), it.getString("url"), "") }
     }
+
+    private fun put(key: String, value: String) = sp.edit().putString(key, value).apply()
+
+    fun setTmdbKey(v: String) { tmdbKey = v.trim(); put("tmdbKey", tmdbKey) }
+    fun setMovieTpl(v: String) { movieTpl = v.trim(); put("movieTpl", movieTpl) }
+    fun setTvTpl(v: String) { tvTpl = v.trim(); put("tvTpl", tvTpl) }
+
+    fun addPlaylist(url: String) { playlists = playlists + url.trim(); put("playlists", JSONArray(playlists).toString()) }
+    fun removePlaylist(url: String) { playlists = playlists - url; put("playlists", JSONArray(playlists).toString()) }
+
+    private fun saveChannels() =
+        put("channels", JSONArray(channels.map { JSONObject().put("name", it.name).put("url", it.url) }).toString())
+    fun addChannel(name: String, url: String) { channels = channels + Channel(name.trim(), url.trim(), ""); saveChannels() }
+    fun removeChannel(c: Channel) { channels = channels - c; saveChannels() }
 
     private fun read(key: String): List<JSONObject> {
         val a = JSONArray(sp.getString(key, "[]"))
@@ -96,13 +132,14 @@ object Store {
 }
 
 object Tmdb {
-    private val client = OkHttpClient()
     private const val IMG = "https://image.tmdb.org/t/p/"
 
     private suspend fun get(path: String): JSONObject = withContext(Dispatchers.IO) {
         val sep = if ('?' in path) '&' else '?'
-        val url = "https://api.themoviedb.org/3$path${sep}api_key=${BuildConfig.TMDB_API_KEY}"
-        client.newCall(Request.Builder().url(url).build()).execute().use { JSONObject(it.body!!.string()) }
+        val url = "https://api.themoviedb.org/3$path${sep}api_key=${Store.tmdbKey}"
+        val json = http.newCall(Request.Builder().url(url).build()).execute().use { JSONObject(it.body!!.string()) }
+        if (!json.optBoolean("success", true)) throw IllegalStateException(json.optString("status_message"))
+        json
     }
 
     private fun parse(j: JSONObject, kind: Kind?): List<Item> {

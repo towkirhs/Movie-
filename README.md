@@ -3,10 +3,12 @@
 Minimal Android app (Kotlin, Jetpack Compose, Media3). Dark UI with Home, Movies, TV Shows, Live and My List tabs. Movie and TV data come from TMDB.
 
 ## Setup
-1. Get a free TMDB API key and put it in `local.properties` (see `local.properties.example`).
-2. Add your own video links in `app/src/main/assets/sources.json` (see the `_help` field). Only add streams you have the right to watch.
-3. Open in Android Studio, build and run.
+Build and run in Android Studio, then open **Settings** (gear icon) and enter:
+- **TMDB API key** — free for personal use at themoviedb.org (account > Settings > API).
+- **Movie link** — URL template with `{id}` (TMDB movie id).
+- **TV show link** — URL template with `{id}`, `{s}` (season), `{e}` (episode).
+- **Live playlists (M3U)** and/or single live channels.
 
-## Notes
-- Watch History and My List are stored on the device.
-- The Live tab lists the channels from `sources.json`, grouped by `time`.
+Only add links to content you have the right to watch. Everything is stored on the device.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
