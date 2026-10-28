@@ -1,9 +1,12 @@
 {
-  "_help": "ADD YOUR LINKS HERE. 'movies': TMDB movie id -> video URL (mp4 or .m3u8). 'live': list of {name, url}. Empty urls are ignored. Only add streams you have the right to watch.",
+  "_help": "ADD YOUR LINKS HERE. Only add streams you have the right to watch. 'movies': TMDB movie id -> video URL (.mp4 or .m3u8). 'tv': TMDB show id -> URL template using {s} for season and {e} for episode, e.g. https://example.com/show/{s}/{e}.m3u8. 'live': list of channels; time and league are optional. Empty URLs are ignored.",
   "movies": {
     "603": ""
   },
+  "tv": {
+    "1399": ""
+  },
   "live": [
-    { "name": "My channel name", "url": "" }
+    { "name": "My channel name", "league": "League name", "time": "08:00", "url": "" }
   ]
 }
