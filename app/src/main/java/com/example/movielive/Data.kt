@@ -2,6 +2,7 @@ package com.example.movielive
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +12,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.net.URI
 import java.net.URLEncoder
 
 enum class Kind { MOVIE, TV }
@@ -52,7 +55,8 @@ object Sources {
     suspend fun playlistChannels(): List<Channel> = withContext(Dispatchers.IO) {
         Store.playlists.flatMap { url ->
             try {
-                val text = http.newCall(Request.Builder().url(url).build()).execute().use { it.body!!.string() }
+                val text = if (url.startsWith("file:")) File(URI(url)).readText()
+                else http.newCall(Request.Builder().url(url).build()).execute().use { it.body!!.string() }
                 parseM3u(text)
             } catch (e: Exception) { emptyList() }
         }
@@ -103,7 +107,18 @@ object Store {
     fun saveTvTpl(v: String) { tvTpl = v.trim(); put("tvTpl", tvTpl) }
 
     fun addPlaylist(url: String) { playlists = playlists + url.trim(); put("playlists", JSONArray(playlists).toString()) }
-    fun removePlaylist(url: String) { playlists = playlists - url; put("playlists", JSONArray(playlists).toString()) }
+    fun removePlaylist(url: String) {
+        if (url.startsWith("file:")) File(URI(url)).delete()
+        playlists = playlists - url; put("playlists", JSONArray(playlists).toString())
+    }
+
+    /** Copies a playlist file the user picked into app storage and adds it as a playlist. */
+    fun importPlaylist(ctx: Context, uri: Uri) {
+        val text = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: return
+        val file = File(ctx.filesDir, "playlist-${System.currentTimeMillis()}.m3u")
+        file.writeText(text)
+        addPlaylist(file.toURI().toString())
+    }
 
     private fun saveChannels() =
         put("channels", JSONArray(channels.map { JSONObject().put("name", it.name).put("url", it.url) }).toString())

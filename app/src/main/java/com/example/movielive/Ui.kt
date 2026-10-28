@@ -1,6 +1,8 @@
 package com.example.movielive
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -207,6 +209,8 @@ private fun RemovableRow(text: String, onRemove: () -> Unit) =
 
 @Composable
 fun SettingsScreen() {
+    val ctx = LocalContext.current
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { Store.importPlaylist(ctx, it) } }
     var newPlaylist by remember { mutableStateOf("") }
     var chName by remember { mutableStateOf("") }
     var chUrl by remember { mutableStateOf("") }
@@ -225,9 +229,10 @@ fun SettingsScreen() {
 
         Header("Live playlists (M3U)")
         Hint("Add as many playlist URLs as you like. Their channels appear in the Live tab.")
-        Store.playlists.forEach { u -> RemovableRow(u) { Store.removePlaylist(u) } }
+        Store.playlists.forEach { u -> RemovableRow(if (u.startsWith("file:")) "Imported file: " + u.substringAfterLast('/') else u) { Store.removePlaylist(u) } }
         Field(newPlaylist, "Playlist URL") { newPlaylist = it }
         Button({ if (newPlaylist.isNotBlank()) { Store.addPlaylist(newPlaylist); newPlaylist = "" } }) { Text("Add playlist") }
+        OutlinedButton({ picker.launch(arrayOf("*/*")) }) { Text("Import playlist file") }
 
         Header("Single live channels")
         Store.channels.forEach { c -> RemovableRow(c.name) { Store.removeChannel(c) } }
