@@ -98,9 +98,9 @@ object Store {
 
     private fun put(key: String, value: String) = sp.edit().putString(key, value).apply()
 
-    fun setTmdbKey(v: String) { tmdbKey = v.trim(); put("tmdbKey", tmdbKey) }
-    fun setMovieTpl(v: String) { movieTpl = v.trim(); put("movieTpl", movieTpl) }
-    fun setTvTpl(v: String) { tvTpl = v.trim(); put("tvTpl", tvTpl) }
+    fun saveTmdbKey(v: String) { tmdbKey = v.trim(); put("tmdbKey", tmdbKey) }
+    fun saveMovieTpl(v: String) { movieTpl = v.trim(); put("movieTpl", movieTpl) }
+    fun saveTvTpl(v: String) { tvTpl = v.trim(); put("tvTpl", tvTpl) }
 
     fun addPlaylist(url: String) { playlists = playlists + url.trim(); put("playlists", JSONArray(playlists).toString()) }
     fun removePlaylist(url: String) { playlists = playlists - url; put("playlists", JSONArray(playlists).toString()) }

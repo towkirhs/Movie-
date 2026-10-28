@@ -213,15 +213,15 @@ fun SettingsScreen() {
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Header("TMDB API key")
         Hint("Free for personal use: create an account at themoviedb.org, then Settings > API > request a key. Paste the \"API Key\" value.")
-        Field(Store.tmdbKey, "TMDB API key", Store::setTmdbKey)
+        Field(Store.tmdbKey, "TMDB API key", Store::saveTmdbKey)
 
         Header("Movie link")
         Hint("A URL that plays one movie. Use {id} for the TMDB movie id, e.g. https://your-server/movies/{id}.m3u8")
-        Field(Store.movieTpl, "Movie link", Store::setMovieTpl)
+        Field(Store.movieTpl, "Movie link", Store::saveMovieTpl)
 
         Header("TV show link")
         Hint("Use {id} for the show id, {s} for the season and {e} for the episode.")
-        Field(Store.tvTpl, "TV show link", Store::setTvTpl)
+        Field(Store.tvTpl, "TV show link", Store::saveTvTpl)
 
         Header("Live playlists (M3U)")
         Hint("Add as many playlist URLs as you like. Their channels appear in the Live tab.")
