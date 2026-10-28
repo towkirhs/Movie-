@@ -1,0 +1,9 @@
+{
+  "_help": "ADD YOUR LINKS HERE. 'movies': TMDB movie id -> video URL (mp4 or .m3u8). 'live': list of {name, url}. Empty urls are ignored. Only add streams you have the right to watch.",
+  "movies": {
+    "603": ""
+  },
+  "live": [
+    { "name": "My channel name", "url": "" }
+  ]
+}
